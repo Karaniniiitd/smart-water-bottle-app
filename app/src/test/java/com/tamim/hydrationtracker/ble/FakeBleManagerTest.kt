@@ -3,6 +3,7 @@ package com.tamim.hydrationtracker.ble
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -26,6 +27,7 @@ class FakeBleManagerTest {
         val manager = FakeBleManager()
 
         val deferred = async { manager.sipEventsMl.first() }
+        runCurrent()
         manager.triggerSip(180)
 
         assertEquals(180, deferred.await())

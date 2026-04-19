@@ -548,6 +548,45 @@ private fun PairingScreen(
                 }
             }
         }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text("ESP debug", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Last parsed sip: ${state.bleDebug.lastParsedSipMl?.let { "$it ml" } ?: "-"}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "Raw (text): ${state.bleDebug.lastRawPacketText ?: "-"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    "Raw (hex): ${state.bleDebug.lastRawPacketHex ?: "-"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Text("Connection timeline", fontWeight = FontWeight.Medium)
+                if (state.bleDebug.connectionEvents.isEmpty()) {
+                    Text("No events yet.", style = MaterialTheme.typography.bodySmall)
+                } else {
+                    state.bleDebug.connectionEvents.takeLast(8).reversed().forEach { event ->
+                        Text("• $event", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
     }
 }
 

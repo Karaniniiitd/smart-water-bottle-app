@@ -15,11 +15,20 @@ data class BleDevice(
     val batteryPercent: Int
 )
 
+data class BleDebugSnapshot(
+    val lastRawPacketHex: String? = null,
+    val lastRawPacketText: String? = null,
+    val lastParsedSipMl: Int? = null,
+    val connectionEvents: List<String> = emptyList(),
+    val lastUpdatedEpochMs: Long? = null
+)
+
 interface BottleSensorGateway {
     val mode: SensorMode
     val devices: StateFlow<List<BleDevice>>
     val connectedDevice: StateFlow<BleDevice?>
     val sipEventsMl: SharedFlow<Int>
+    val debugSnapshot: StateFlow<BleDebugSnapshot>
 
     suspend fun startScan()
     fun connect(device: BleDevice)

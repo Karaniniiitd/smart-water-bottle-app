@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.tamim.hydrationtracker.ble.BottleSensorGateway
+import com.tamim.hydrationtracker.ble.BleDebugSnapshot
 import com.tamim.hydrationtracker.ble.BleDevice
 import com.tamim.hydrationtracker.ble.SensorMode
 import com.tamim.hydrationtracker.data.model.DailyIntake
@@ -59,7 +60,8 @@ data class HydrationUiState(
     val profileDraft: UserProfileDraft? = null,
     val sensorMode: SensorMode = SensorMode.SIMULATION,
     val connectedDevice: BleDevice? = null,
-    val scannedDevices: List<BleDevice> = emptyList()
+    val scannedDevices: List<BleDevice> = emptyList(),
+    val bleDebug: BleDebugSnapshot = BleDebugSnapshot()
 ) {
     val progress: Float
         get() = (todayIntakeMl.toFloat() / goalMl.toFloat()).coerceIn(0f, 1f)
@@ -114,6 +116,7 @@ class HydrationViewModel(
         repository.profileDraftFlow,
         sensorGateway.devices,
         sensorGateway.connectedDevice,
+        sensorGateway.debugSnapshot,
         goalFlow
     ) { args: Array<Any?> ->
         val profile = args[0] as UserProfile?
@@ -124,7 +127,8 @@ class HydrationViewModel(
         val profileDraft = args[5] as UserProfileDraft?
         val scannedDevices = args[6] as List<BleDevice>
         val connected = args[7] as BleDevice?
-        val currentGoal = args[8] as Int
+    val bleDebug = args[8] as BleDebugSnapshot
+    val currentGoal = args[9] as Int
 
         val computedGoal = profile?.let { GoalCalculator.calculateGoalMl(it) } ?: currentGoal
         val weeklyStats = computeWeekly(entries, computedGoal)
@@ -145,7 +149,8 @@ class HydrationViewModel(
             profileDraft = profileDraft,
             sensorMode = sensorGateway.mode,
             connectedDevice = connected,
-            scannedDevices = scannedDevices
+            scannedDevices = scannedDevices,
+            bleDebug = bleDebug
         )
     }.stateIn(
         scope = viewModelScope,

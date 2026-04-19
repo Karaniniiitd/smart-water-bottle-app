@@ -1,8 +1,13 @@
 package com.tamim.hydrationtracker.work
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
@@ -21,6 +26,7 @@ class ReminderWorker(
     params: WorkerParameters
 ) : CoroutineWorker(appContext, params) {
 
+    @SuppressLint("MissingPermission")
     override suspend fun doWork(): Result {
         createChannel(applicationContext)
 
@@ -31,8 +37,10 @@ class ReminderWorker(
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 
-        runCatching {
-            NotificationManagerCompat.from(applicationContext).notify(101, notification)
+        if (hasNotificationPermission(applicationContext)) {
+            runCatching {
+                NotificationManagerCompat.from(applicationContext).notify(101, notification)
+            }
         }
 
         return Result.success()
@@ -56,6 +64,14 @@ class ReminderWorker(
                 NotificationManager.IMPORTANCE_DEFAULT
             )
             manager.createNotificationChannel(channel)
+        }
+
+        private fun hasNotificationPermission(context: Context): Boolean {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+            return ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
         }
     }
 }

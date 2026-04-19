@@ -17,12 +17,12 @@ import com.tamim.hydrationtracker.ui.theme.HydrationTrackerTheme
 
 class MainActivity : ComponentActivity() {
 
-    private val sensorMode: SensorMode = SensorMode.SIMULATION
+    private val sensorMode: SensorMode = SensorMode.REAL_BOTTLE
 
     private val sensorGateway: BottleSensorGateway by lazy {
         when (sensorMode) {
             SensorMode.SIMULATION -> FakeBleManager()
-            SensorMode.REAL_BOTTLE -> RealBottleSensorGateway()
+            SensorMode.REAL_BOTTLE -> RealBottleSensorGateway(applicationContext)
         }
     }
 

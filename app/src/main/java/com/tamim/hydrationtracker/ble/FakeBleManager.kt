@@ -20,6 +20,9 @@ class FakeBleManager : BottleSensorGateway {
     private val _sipEventsMl = MutableSharedFlow<Int>(extraBufferCapacity = 4)
     override val sipEventsMl: SharedFlow<Int> = _sipEventsMl
 
+    private val _debugSnapshot = MutableStateFlow(BleDebugSnapshot())
+    override val debugSnapshot: StateFlow<BleDebugSnapshot> = _debugSnapshot.asStateFlow()
+
     override suspend fun startScan() {
         delay(700)
         _devices.value = listOf(
@@ -31,13 +34,30 @@ class FakeBleManager : BottleSensorGateway {
 
     override fun connect(device: BleDevice) {
         _connectedDevice.value = device
+        _debugSnapshot.value = _debugSnapshot.value.copy(
+            connectionEvents = (_debugSnapshot.value.connectionEvents + "Connected (sim): ${device.name}").takeLast(20),
+            lastUpdatedEpochMs = System.currentTimeMillis()
+        )
     }
 
     override fun disconnect() {
+        val deviceName = _connectedDevice.value?.name ?: "Unknown"
         _connectedDevice.value = null
+        _debugSnapshot.value = _debugSnapshot.value.copy(
+            connectionEvents = (_debugSnapshot.value.connectionEvents + "Disconnected (sim): $deviceName").takeLast(20),
+            lastUpdatedEpochMs = System.currentTimeMillis()
+        )
     }
 
     override fun triggerSip(amountMl: Int) {
-        _sipEventsMl.tryEmit(amountMl.coerceAtLeast(1))
+        val sip = amountMl.coerceAtLeast(1)
+        _sipEventsMl.tryEmit(sip)
+        _debugSnapshot.value = _debugSnapshot.value.copy(
+            lastRawPacketText = "simulated:$sip",
+            lastRawPacketHex = null,
+            lastParsedSipMl = sip,
+            connectionEvents = (_debugSnapshot.value.connectionEvents + "Sip event (sim): ${sip}ml").takeLast(20),
+            lastUpdatedEpochMs = System.currentTimeMillis()
+        )
     }
 }
