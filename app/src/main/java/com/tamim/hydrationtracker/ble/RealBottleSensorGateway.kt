@@ -68,6 +68,16 @@ class RealBottleSensorGateway(
     private val knownScanResults = linkedMapOf<String, BleDevice>()
     private var activeGatt: BluetoothGatt? = null
 
+    /**
+     * When true, upsertDevice uses relaxed filtering (accepts any device with
+     * a non-null name) because the strict UUID-filtered scan found nothing.
+     * This handles the very common case where the ESP32 BLE stack does not
+     * include the service UUID in its advertisement payload AND Android cannot
+     * resolve the device name through scanRecord.deviceName (returns null on
+     * many Android 12+ devices without BLUETOOTH_CONNECT granted at scan time).
+     */
+    private var fallbackScanActive = false
+
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             upsertDevice(result)
@@ -147,6 +157,7 @@ class RealBottleSensorGateway(
         addDebugEvent("Scan started")
         knownScanResults.clear()
         _devices.value = emptyList()
+        fallbackScanActive = false
 
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
@@ -163,12 +174,30 @@ class RealBottleSensorGateway(
         delay(SCAN_WINDOW_MS)
         safeRun { bleScanner.stopScan(scanCallback) }
 
-        // Pass 2 fallback: unfiltered scan (many ESP32 stacks don't expose UUID reliably in adv packets)
+        // Pass 2: name-based filter scan (catches ESP32 devices that don't expose
+        // the service UUID in advertisement packets but do broadcast their name)
         if (knownScanResults.isEmpty()) {
-            addDebugEvent("UUID-filter scan empty, retrying unfiltered scan")
+            addDebugEvent("UUID-filter scan empty, trying name-filter scan")
+            val nameFilters = KNOWN_DEVICE_NAMES.map { name ->
+                ScanFilter.Builder()
+                    .setDeviceName(name)
+                    .build()
+            }
+            safeRun { bleScanner.startScan(nameFilters, settings, scanCallback) }
+            delay(NAME_SCAN_WINDOW_MS)
+            safeRun { bleScanner.stopScan(scanCallback) }
+        }
+
+        // Pass 3 fallback: fully unfiltered scan — accept any named BLE device and
+        // let the user pick.  This handles the case where Android can't read the
+        // device name in the scan record (common on Android 12+).
+        if (knownScanResults.isEmpty()) {
+            addDebugEvent("Name-filter scan empty, retrying unfiltered scan")
+            fallbackScanActive = true
             safeRun { bleScanner.startScan(null, settings, scanCallback) }
             delay(FALLBACK_SCAN_WINDOW_MS)
             safeRun { bleScanner.stopScan(scanCallback) }
+            fallbackScanActive = false
         }
 
         addDebugEvent("Scan finished: ${knownScanResults.size} device(s)")
@@ -239,20 +268,32 @@ class RealBottleSensorGateway(
     }
 
     private fun upsertDevice(result: ScanResult) {
-        val deviceName = result.scanRecord?.deviceName
-            ?: safeDeviceName(result.device)
-            ?: return
-        if (!isEspBottleName(deviceName)) return
-
         val address = result.device.address ?: return
+        val scanRecord = result.scanRecord
+        val advertisedServiceMatch = scanRecord
+            ?.serviceUuids
+            ?.any { it.uuid == BOTTLE_SERVICE_UUID }
+            ?: false
+
+        val resolvedName = scanRecord?.deviceName ?: safeDeviceName(result.device)
+        val nameMatch = resolvedName?.let(::isEspBottleName) ?: false
+
+        // During normal (filtered) scanning: require UUID or name match.
+        // During fallback (unfiltered) scanning: accept ALL devices.
+        if (!fallbackScanActive) {
+            if (!advertisedServiceMatch && !nameMatch) return
+        }
+
+        val displayName = resolvedName ?: if (fallbackScanActive) "Unknown-${address.takeLast(5).replace(":", "")}" else "SmartBottle-${address.takeLast(5).replace(":", "")}" 
+
         knownScanResults[address] = BleDevice(
-            name = deviceName,
+            name = displayName,
             address = address,
             rssi = result.rssi,
             batteryPercent = _connectedDevice.value?.takeIf { it.address == address }?.batteryPercent ?: -1
         )
         _devices.value = knownScanResults.values.toList()
-        addDebugEvent("Scan hit: $deviceName (${result.rssi} dBm)")
+        addDebugEvent("Scan hit: $displayName (${result.rssi} dBm)")
     }
 
     private fun addDebugEvent(event: String) {
@@ -304,16 +345,22 @@ class RealBottleSensorGateway(
         val normalized = name.lowercase()
         return normalized.contains("esp") ||
             normalized.contains("smartbottle") ||
+            normalized.contains("smart bottle") ||
             normalized.contains("bottle") ||
             normalized.contains("hydr") ||
-            normalized.contains("aqua")
+            normalized.contains("aqua") ||
+            normalized.contains("smart")
     }
 
     private fun <T> safeRun(block: () -> T): T? = runCatching(block).getOrNull()
 
     companion object {
         private const val SCAN_WINDOW_MS = 6_000L
-        private const val FALLBACK_SCAN_WINDOW_MS = 4_000L
+        private const val NAME_SCAN_WINDOW_MS = 5_000L
+        private const val FALLBACK_SCAN_WINDOW_MS = 8_000L
+
+        /** Device names the ESP32 firmware might advertise as. */
+        private val KNOWN_DEVICE_NAMES = listOf("SmartBottle", "ESP32", "HydrationTracker")
 
         // Default custom service/characteristic expected from ESP firmware.
         private val BOTTLE_SERVICE_UUID: UUID = UUID.fromString("0000FFB0-0000-1000-8000-00805F9B34FB")

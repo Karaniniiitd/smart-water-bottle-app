@@ -19,13 +19,13 @@ Step-by-step guide from flashing to daily use.
 
 ## 1. Prerequisites
 
-| Item                  | Details                                                     |
-|-----------------------|-------------------------------------------------------------|
-| Arduino IDE           | v2.x or later (or PlatformIO)                               |
-| ESP32 Core            | Espressif ESP32 board support (Boards Manager)               |
-| Libraries             | See `libraries.md` for the full install checklist            |
-| Hardware wired        | See `wiring_schematic.md` for all pin connections            |
-| USB cable             | Micro-USB (or USB-C for newer ESP32 boards)                  |
+| Item           | Details                                           |
+| -------------- | ------------------------------------------------- |
+| Arduino IDE    | v2.x or later (or PlatformIO)                     |
+| ESP32 Core     | Espressif ESP32 board support (Boards Manager)    |
+| Libraries      | See `libraries.md` for the full install checklist |
+| Hardware wired | See `wiring_schematic.md` for all pin connections |
+| USB cable      | Micro-USB (or USB-C for newer ESP32 boards)       |
 
 ---
 
@@ -129,15 +129,15 @@ The IMU calibration sets gyro and accelerometer offsets so tilt detection is acc
 ## 6. Serial Command Reference
 
 | Command | Action                                                                      |
-|---------|-----------------------------------------------------------------------------|
-| `c`     | Enter **load cell calibration** mode (tare + water/weight calibration)       |
-| `i`     | Enter **IMU calibration** mode (collect gyro/accel offsets)                  |
-| `r`     | **Reset** today's consumed total to 0 ml                                     |
-| `s`     | Print **status**: raw + EMA weight, IMU, BLE, cal factor, sip state, total   |
-| `l`     | **List** the last 10 cached sip events (timestamps + ml) from EEPROM         |
-| `x`     | **Factory reset cache**: wipes sip cache metadata + EEPROM sip record bytes   |
-| `b`     | Send a **BLE test notification** (`123 ml`) to quickly verify phone receive   |
-| `d`     | **Display check**: diagnose OLED, attempt re-init, show test pattern         |
+| ------- | --------------------------------------------------------------------------- |
+| `c`     | Enter **load cell calibration** mode (tare + water/weight calibration)      |
+| `i`     | Enter **IMU calibration** mode (collect gyro/accel offsets)                 |
+| `r`     | **Reset** today's consumed total to 0 ml                                    |
+| `s`     | Print **status**: raw + EMA weight, IMU, BLE, cal factor, sip state, total  |
+| `l`     | **List** the last 10 cached sip events (timestamps + ml) from EEPROM        |
+| `x`     | **Factory reset cache**: wipes sip cache metadata + EEPROM sip record bytes |
+| `b`     | Send a **BLE test notification** (`123 ml`) to quickly verify phone receive |
+| `d`     | **Display check**: diagnose OLED, attempt re-init, show test pattern        |
 
 All commands are single characters — just type the letter and press Enter in Arduino Serial Monitor at 115200 baud.
 
@@ -166,21 +166,25 @@ The Android app (`smart-water-bottle-app-main`) uses `RealBottleSensorGateway` w
 ## 8. Troubleshooting
 
 ### Load cell reads 0 or erratic values
+
 - Check HX711 wiring: DOUT → GPIO 19, SCK → GPIO 18
 - Ensure the load cell is wired correctly to the HX711 (E+/E−/A+/A−)
 - Recalibrate with `c`
 
 ### HX711 timeout on boot
+
 - The Serial Monitor shows `Timeout, check MCU>HX711 wiring`
 - Double-check soldering and wire connections
 - Ensure HX711 VCC is connected to 3.3V
 
 ### MPU6050 not found
+
 - Check I2C wiring: SDA → GPIO 21, SCL → GPIO 22
 - Ensure MPU6050 AD0 pin is LOW (address 0x68)
 - Run an I2C scanner sketch to verify the address
 
 ### OLED not displaying
+
 - **OLED uses Wire1 (GPIO 25/26)** — NOT the same pins as MPU6050 (GPIO 21/22)
 - Check wiring: OLED SDA → GPIO 25, OLED SCL → GPIO 26
 - Send **`d`** to run display diagnostics and attempt re-init
@@ -188,18 +192,21 @@ The Android app (`smart-water-bottle-app-main`) uses `RealBottleSensorGateway` w
 - The display auto-sleeps after 10 s — move the bottle to wake it
 
 ### BLE not visible on phone
+
 - Ensure Bluetooth and Location are enabled on the phone
 - The ESP32 must be running and Serial should show `Advertising as SmartBottle`
 - Try restarting the ESP32
 - Check the app is in Real Bottle mode
 
 ### Display stuck at "Smart Bottle Initialising..." (Battery power issue)
+
 - If the device works on USB but hangs on battery power, it's usually due to poor battery power quality causing I2C locks or timeouts on boot.
 - The firmware has been updated to stagger component boot times and disable the ESP32 brownout detector to get past the high power draw required for BLE initialization.
 - If it still happens, make sure your LiPo battery is fully charged (voltage should be >3.7V).
 - Double check that the TP4056 output is correctly providing adequate power to the ESP32 `VIN` pin.
 
 ### Sips not detected
+
 - Is the load cell calibrated? (Send `s` to check — cal factor should not be "NOT SET")
 - Is the weight reading stable? (Send `s` — weight should show a reasonable number in grams)
 - Are you tilting the bottle enough? The IMU needs a clear tilt sustained for 500ms
@@ -207,22 +214,26 @@ The Android app (`smart-water-bottle-app-main`) uses `RealBottleSensorGateway` w
 - Check `SIP_MIN_ML` in `config.h` if threshold is too high
 
 ### Sip values are absurdly large (e.g. 422347 ml)
+
 - The load cell calibration factor is wrong — the sensor is returning raw ADC values
 - Run calibration with `c`, using the water-based method (`w`) for best results
 - After calibration, send `s` and check that weight reads correctly in grams
 - Sips above 500ml are automatically rejected (MAX_SIP_ML)
 
 ### False tilt detection when bottle is on table
+
 - Run IMU calibration: send `i` with the bottle perfectly still on a flat surface
 - The firmware uses EMA smoothing and requires 500ms sustained tilt to confirm
 - If still too sensitive, increase `IMU_TILT_THRESHOLD` in `config.h` (default: 8000)
 
 ### Sip detected but app doesn't receive it
+
 - Check BLE connection status icon on OLED (Bluetooth "B" vs "X")
 - Send `s` to verify `BLE connected: YES`
 - The payload is a plain integer string (e.g. `"120"`) matching the app's parser
 
 ### Display turns off unexpectedly
+
 - This is normal — the display auto-sleeps after 10 seconds of no motion
 - Move/tilt the bottle to wake it
 - Increase `DISPLAY_TIMEOUT_MS` in `config.h` if you want a longer timeout

@@ -478,28 +478,36 @@ private fun PairingScreen(
     val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        val allGranted = results.values.all { it }
-        if (allGranted) {
+        // Require all permissions to be granted EXCEPT notifications (which are optional for scanning)
+        val scanPermissionsGranted = results.entries.all { (permission, isGranted) ->
+            if (permission == Manifest.permission.POST_NOTIFICATIONS) true else isGranted
+        }
+        
+        if (scanPermissionsGranted) {
             onScan()
         } else {
-            Toast.makeText(context, "Bluetooth permissions are required for scanning.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Bluetooth and Location permissions are required for scanning.", Toast.LENGTH_LONG).show()
         }
     }
 
     fun requestBluetoothPermissionsAndScan() {
-        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            arrayOf(
-                Manifest.permission.BLUETOOTH_SCAN,
-                Manifest.permission.BLUETOOTH_CONNECT
-            )
+        val permissions = mutableListOf<String>()
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissions.add(Manifest.permission.BLUETOOTH_SCAN)
+            permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
         } else {
-            arrayOf(
-                Manifest.permission.BLUETOOTH,
-                Manifest.permission.BLUETOOTH_ADMIN,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            )
+            permissions.add(Manifest.permission.BLUETOOTH)
+            permissions.add(Manifest.permission.BLUETOOTH_ADMIN)
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
         }
-        bluetoothPermissionLauncher.launch(permissions)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        
+        bluetoothPermissionLauncher.launch(permissions.toTypedArray())
     }
 
     Column(
