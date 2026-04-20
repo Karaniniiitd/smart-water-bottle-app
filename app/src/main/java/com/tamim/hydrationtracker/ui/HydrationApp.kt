@@ -704,7 +704,7 @@ private fun InsightsScreen(state: HydrationUiState) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("AI insights", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Insight", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
 
         InsightCard("Pattern", "You’re usually lower in afternoon hours. Schedule extra reminder around 2–4 PM.")
         InsightCard("Best day", "${bestDay?.dayLabel ?: "-"} with ${bestDay?.totalMl ?: 0} ml")
