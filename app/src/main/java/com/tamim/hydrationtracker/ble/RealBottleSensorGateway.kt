@@ -148,19 +148,30 @@ class RealBottleSensorGateway(
         knownScanResults.clear()
         _devices.value = emptyList()
 
-        val filters = listOf(
-            ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(BOTTLE_SERVICE_UUID))
-                .build()
-        )
         val settings = ScanSettings.Builder()
             .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
             .build()
 
-        safeRun { bleScanner.startScan(filters, settings, scanCallback) }
+        val strictFilters = listOf(
+            ScanFilter.Builder()
+                .setServiceUuid(ParcelUuid(BOTTLE_SERVICE_UUID))
+                .build()
+        )
+
+        // Pass 1: strict UUID scan (fast when advertisement includes service UUID)
+        safeRun { bleScanner.startScan(strictFilters, settings, scanCallback) }
         delay(SCAN_WINDOW_MS)
         safeRun { bleScanner.stopScan(scanCallback) }
-    addDebugEvent("Scan finished: ${knownScanResults.size} device(s)")
+
+        // Pass 2 fallback: unfiltered scan (many ESP32 stacks don't expose UUID reliably in adv packets)
+        if (knownScanResults.isEmpty()) {
+            addDebugEvent("UUID-filter scan empty, retrying unfiltered scan")
+            safeRun { bleScanner.startScan(null, settings, scanCallback) }
+            delay(FALLBACK_SCAN_WINDOW_MS)
+            safeRun { bleScanner.stopScan(scanCallback) }
+        }
+
+        addDebugEvent("Scan finished: ${knownScanResults.size} device(s)")
 
         if (_devices.value.isEmpty() && knownScanResults.isNotEmpty()) {
             _devices.value = knownScanResults.values.toList()
@@ -292,6 +303,7 @@ class RealBottleSensorGateway(
     private fun isEspBottleName(name: String): Boolean {
         val normalized = name.lowercase()
         return normalized.contains("esp") ||
+            normalized.contains("smartbottle") ||
             normalized.contains("bottle") ||
             normalized.contains("hydr") ||
             normalized.contains("aqua")
@@ -301,6 +313,7 @@ class RealBottleSensorGateway(
 
     companion object {
         private const val SCAN_WINDOW_MS = 6_000L
+        private const val FALLBACK_SCAN_WINDOW_MS = 4_000L
 
         // Default custom service/characteristic expected from ESP firmware.
         private val BOTTLE_SERVICE_UUID: UUID = UUID.fromString("0000FFB0-0000-1000-8000-00805F9B34FB")
